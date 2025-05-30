@@ -2,149 +2,509 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MicroStrategy Inc. (MSTR)</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>📊 MSTR Live Preischart</title>
+
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#dc2626">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MSTR Chart">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script> 
+
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: Georgia, serif;
-      background: #fff;
-      color: #111;
-      margin: 0;
-      padding: 2rem;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+      color: #333;
+      padding: 20px;
+      min-height: 100vh;
     }
-    h1 {
-      font-size: 2.4rem;
-      margin-bottom: 0.2rem;
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+      overflow: hidden;
     }
-    h1 span {
-      font-weight: normal;
-      font-size: 1.4rem;
-      color: #444;
+    .header {
+      text-align: center;
+      padding: 30px 20px;
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      color: white;
+      position: relative;
     }
-    #info {
-      margin: 1rem 0;
-      line-height: 1.6;
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .header .subtitle {
       font-size: 1rem;
+      opacity: 0.9;
     }
-    .chart-container {
-      width: 100%;
-      max-width: 1000px;
-      margin: 2rem 0;
+    .live-indicator {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.2);
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    .price-display {
+      display: flex;
+      justify-content: space-around;
+      padding: 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .price-item {
+      text-align: center;
+    }
+    .price-label {
+      font-size: 0.9rem;
+      color: #64748b;
+      margin-bottom: 5px;
+    }
+    .price-value {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .price-change {
+      font-size: 0.9rem;
+      margin-top: 5px;
+    }
+    .positive { color: #16a34a; }
+    .negative { color: #dc2626; }
+    .chart-wrapper {
+      padding: 30px;
+      position: relative;
+      height: 500px;
     }
     canvas {
-      width: 100% !important;
-      height: auto !important;
+      max-width: 100%;
+      height: auto;
     }
-    button {
-      margin-right: 0.5rem;
-      padding: 0.3rem 0.7rem;
-      background: #eee;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #777;
+      font-size: 1.1rem;
+    }
+    .error {
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+      padding: 15px;
+      margin: 20px 30px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .info-box {
+      background: #fef2f2;
+      border-left: 4px solid #dc2626;
+      padding: 20px;
+      margin: 20px 30px;
+      border-radius: 8px;
+    }
+    .info-box h3 {
+      color: #dc2626;
+      margin-bottom: 10px;
+      font-size: 1.1rem;
+    }
+    .info-box p {
+      color: #991b1b;
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+    .time-controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      padding: 20px;
+      background: #f8fafc;
+    }
+    .time-btn {
+      padding: 8px 16px;
+      border: 1px solid #dc2626;
+      background: white;
+      color: #dc2626;
+      border-radius: 6px;
       cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    .time-btn:hover,
+    .time-btn.active {
+      background: #dc2626;
+      color: white;
+    }
+    .refresh-controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 15px;
+      padding: 15px;
+      background: #f1f5f9;
+      border-top: 1px solid #e2e8f0;
+    }
+    .refresh-btn {
+      padding: 8px 16px;
+      background: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    .refresh-btn:hover {
+      background: #b91c1c;
+    }
+    .refresh-btn:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+    .last-update {
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+    @media (max-width: 768px) {
+      .header h1 { font-size: 1.5rem; }
+      .chart-wrapper { padding: 20px; height: 400px; }
+      .info-box { margin: 15px 20px; }
+      .price-display { flex-direction: column; gap: 15px; }
+      .time-controls { flex-wrap: wrap; }
+      .live-indicator { position: static; margin-top: 10px; }
     }
   </style>
 </head>
 <body>
+  <div class="container">
+    <div class="header">
+      <div class="live-indicator">
+        <div class="live-dot"></div>
+        <span>LIVE</span>
+      </div>
+      <h1>📊 MicroStrategy Inc. (MSTR)</h1>
+      <div class="subtitle">Live Kursdaten via Yahoo Finance</div>
+    </div>
+    
+    <div class="price-display">
+      <div class="price-item">
+        <div class="price-label">Aktueller Kurs</div>
+        <div class="price-value" id="currentPrice">$---.--</div>
+        <div class="price-change" id="priceChange">---.-- (---%)</div>
+      </div>
+      <div class="price-item">
+        <div class="price-label">Tageshoch/Tief</div>
+        <div class="price-value" id="dayRange">$--- / $---</div>
+      </div>
+      <div class="price-item">
+        <div class="price-label">Volumen</div>
+        <div class="price-value" id="volume">---</div>
+      </div>
+      <div class="price-item">
+        <div class="price-label">Marktkapitalisierung</div>
+        <div class="price-value" id="marketCap">$---B</div>
+      </div>
+    </div>
 
-  <h1>📊 MicroStrategy Inc. (MSTR)</h1>
-  <div id="info">Lade Daten...</div>
+    <div class="time-controls">
+      <button class="time-btn" onclick="changeTimeframe('1d')">1 Tag</button>
+      <button class="time-btn" onclick="changeTimeframe('5d')">5 Tage</button>
+      <button class="time-btn" onclick="changeTimeframe('1mo')">1 Monat</button>
+      <button class="time-btn active" onclick="changeTimeframe('3mo')">3 Monate</button>
+      <button class="time-btn" onclick="changeTimeframe('6mo')">6 Monate</button>
+      <button class="time-btn" onclick="changeTimeframe('1y')">1 Jahr</button>
+      <button class="time-btn" onclick="changeTimeframe('2y')">2 Jahre</button>
+    </div>
 
-  <div class="chart-container">
-    <canvas id="chart"></canvas>
+    <div class="chart-wrapper">
+      <canvas id="priceChart"></canvas>
+    </div>
+    
+    <div class="loading" id="loading">Live-Kursdaten werden geladen...</div>
+    <div class="error" id="error" style="display: none;"></div>
+
+    <div class="refresh-controls">
+      <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">🔄 Aktualisieren</button>
+      <div class="last-update" id="lastUpdate">Zuletzt aktualisiert: --:--</div>
+    </div>
+    
+    <div class="info-box">
+      <h3>📈 Über MicroStrategy (MSTR)</h3>
+      <p><strong>Geschäft:</strong> Business Intelligence Software & Analytics</p>
+      <p><strong>Bitcoin-Strategy:</strong> Größter Corporate Bitcoin-Holder (>190,000 BTC)</p>
+      <p><strong>CEO:</strong> Michael Saylor (Bitcoin-Maximalist)</p>
+      <p><strong>Volatilität:</strong> Extrem hoch korreliert mit Bitcoin-Preis</p>
+      <p><strong>Datenquelle:</strong> Yahoo Finance API (Live-Daten)</p>
+    </div>
   </div>
 
   <script>
-    async function fetchData() {
-      const res = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/MSTR?range=1y&interval=1d');
-      const json = await res.json();
-      const result = json.chart.result[0];
-      const prices = result.indicators.adjclose[0].adjclose;
-      const timestamps = result.timestamp;
+    const ctx = document.getElementById('priceChart').getContext('2d');
+    let priceChart;
+    let currentTimeframe = '3mo';
+    let isLoading = false;
 
-      const labels = timestamps.map(t => new Date(t * 1000).toISOString().split('T')[0]);
-      const cleanData = prices.map((p, i) => ({ date: labels[i], price: p })).filter(p => p.price !== null);
-
-      // 200-Tage-Durchschnitt berechnen
-      const ma200 = [];
-      for (let i = 0; i < cleanData.length; i++) {
-        if (i < 199) {
-          ma200.push(null);
-        } else {
-          const avg = cleanData.slice(i - 199, i + 1).reduce((sum, d) => sum + d.price, 0) / 200;
-          ma200.push(avg);
-        }
-      }
-
-      const last = cleanData[cleanData.length - 1];
-      const lastMA = ma200[ma200.length - 1];
-      const diffPct = ((last.price - lastMA) / lastMA * 100).toFixed(2);
-
-      // 52-Wochen Hoch/Tief
-      const pricesOnly = cleanData.map(d => d.price);
-      const high52 = Math.max(...pricesOnly).toFixed(2);
-      const low52 = Math.min(...pricesOnly).toFixed(2);
-
-      // Info-Block füllen
-      document.getElementById("info").innerHTML = `
-        Business Intelligence & Bitcoin Holdings<br>
-        <strong>Aktueller Kurs:</strong> $${last.price.toFixed(2)}<br>
-        <strong>200-Tage MA:</strong> $${lastMA.toFixed(2)}<br>
-        <strong>${diffPct > 0 ? '+' : ''}${diffPct}% ${diffPct > 0 ? 'über' : 'unter'} MA</strong><br>
-        <strong>52W Hoch/Tief:</strong> $${high52} / $${low52}
-      `;
-
-      const ctx = document.getElementById("chart").getContext("2d");
-      new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: cleanData.map(d => d.date),
-          datasets: [
-            {
-              label: "MSTR Kurs",
-              data: cleanData.map(d => d.price),
-              borderColor: "#cc0000",
-              backgroundColor: "rgba(204,0,0,0.05)",
-              pointRadius: 0,
-              fill: true,
-              tension: 0.2,
-            },
-            {
-              label: "200-Tage-MA",
-              data: ma200,
-              borderColor: "blue",
-              pointRadius: 0,
-              borderWidth: 1.5,
-              tension: 0.2,
-            }
-          ]
-        },
-        options: {
-          plugins: {
-            legend: {
-              labels: {
-                usePointStyle: true,
-                pointStyle: 'circle'
-              }
-            }
-          },
-          scales: {
-            x: {
-              ticks: {
-                maxTicksLimit: 12
-              }
-            },
-            y: {
-              beginAtZero: false
-            }
+    // Yahoo Finance API Proxy (kostenlose Alternative)
+    const API_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/MSTR';
+    
+    async function fetchYahooFinanceData(period = '3mo', interval = '1d') {
+      try {
+        const url = `${API_BASE}?period1=0&period2=9999999999&interval=${interval}&range=${period}`;
+        
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-      });
+        
+        const data = await response.json();
+        
+        if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
+          throw new Error('Keine Daten von Yahoo Finance erhalten');
+        }
+        
+        return data.chart.result[0];
+      } catch (error) {
+        console.error('Yahoo Finance API Fehler:', error);
+        throw error;
+      }
     }
 
-    fetchData();
-  </script>
+    function formatNumber(num) {
+      if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
+      if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+      if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+      return num.toString();
+    }
 
+    function updatePriceDisplay(data) {
+      const meta = data.meta;
+      const currentPrice = meta.regularMarketPrice || meta.previousClose;
+      const previousClose = meta.previousClose;
+      const change = currentPrice - previousClose;
+      const changePercent = (change / previousClose) * 100;
+      
+      document.getElementById('currentPrice').textContent = `$${currentPrice.toFixed(2)}`;
+      document.getElementById('priceChange').textContent = 
+        `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`;
+      document.getElementById('priceChange').className = 
+        `price-change ${change >= 0 ? 'positive' : 'negative'}`;
+      
+      document.getElementById('dayRange').textContent = 
+        `$${meta.regularMarketDayHigh?.toFixed(2) || '--'} / $${meta.regularMarketDayLow?.toFixed(2) || '--'}`;
+      
+      document.getElementById('volume').textContent = 
+        formatNumber(meta.regularMarketVolume || 0);
+      
+      const marketCap = (currentPrice * (meta.sharesOutstanding || 0)) / 1e9;
+      document.getElementById('marketCap').textContent = `$${marketCap.toFixed(1)}B`;
+    }
+
+    function changeTimeframe(timeframe) {
+      currentTimeframe = timeframe;
+      document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      loadChart();
+    }
+
+    async function loadChart() {
+      if (isLoading) return;
+      
+      try {
+        isLoading = true;
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('error').style.display = 'none';
+        document.getElementById('refreshBtn').disabled = true;
+        
+        // Bestimme Intervall basierend auf Zeitrahmen
+        let interval = '1d';
+        if (currentTimeframe === '1d') interval = '5m';
+        else if (currentTimeframe === '5d') interval = '15m';
+        else if (currentTimeframe === '1mo') interval = '1h';
+        
+        const data = await fetchYahooFinanceData(currentTimeframe, interval);
+        
+        updatePriceDisplay(data);
+        
+        // Extrahiere Preis- und Zeitstempel-Daten
+        const timestamps = data.timestamp;
+        const prices = data.indicators.quote[0];
+        
+        const labels = timestamps.map(ts => {
+          const date = new Date(ts * 1000);
+          if (interval === '5m' || interval === '15m') {
+            return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+          } else if (interval === '1h') {
+            return date.toLocaleDateString('de-DE', { month: 'short', day: 'numeric' }) + ' ' + 
+                   date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+          } else {
+            return date.toLocaleDateString('de-DE', { month: 'short', day: 'numeric' });
+          }
+        });
+        
+        const closePrices = prices.close.map(price => price ? parseFloat(price.toFixed(2)) : null);
+        const volumes = prices.volume || [];
+        
+        document.getElementById('loading').style.display = 'none';
+
+        if (priceChart) priceChart.destroy();
+
+        priceChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'MSTR Kurs ($)',
+                data: closePrices,
+                borderColor: '#dc2626',
+                backgroundColor: 'rgba(220, 38, 38, 0.05)',
+                tension: 0.4,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                borderWidth: 3,
+                fill: true,
+                spanGaps: true
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { 
+                display: true,
+                position: 'top',
+                labels: {
+                  color: '#374151',
+                  font: { size: 14, weight: '500' },
+                  usePointStyle: true,
+                  padding: 20
+                }
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false,
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                titleColor: 'white',
+                bodyColor: 'white',
+                borderColor: '#dc2626',
+                borderWidth: 1,
+                cornerRadius: 8,
+                displayColors: true,
+                callbacks: {
+                  label: function(context) {
+                    const value = context.parsed.y;
+                    return `Kurs: $${value?.toFixed(2) || 'N/A'}`;
+                  }
+                }
+              }
+            },
+            interaction: {
+              mode: 'nearest',
+              axis: 'x',
+              intersect: false
+            },
+            scales: {
+              x: {
+                grid: {
+                  color: 'rgba(0, 0, 0, 0.05)',
+                  drawBorder: false
+                },
+                ticks: {
+                  color: '#6b7280',
+                  maxTicksLimit: 8,
+                  font: { size: 12 }
+                }
+              },
+              y: {
+                beginAtZero: false,
+                grid: {
+                  color: 'rgba(0, 0, 0, 0.05)',
+                  drawBorder: false
+                },
+                ticks: {
+                  color: '#6b7280',
+                  font: { size: 12 },
+                  callback: function(value) {
+                    return '$' + value.toFixed(0);
+                  }
+                }
+              }
+            },
+            elements: {
+              point: {
+                hoverBorderWidth: 3
+              }
+            }
+          }
+        });
+
+        // Update-Zeit anzeigen
+        document.getElementById('lastUpdate').textContent = 
+          `Zuletzt aktualisiert: ${new Date().toLocaleTimeString('de-DE')}`;
+
+      } catch (error) {
+        console.error('Fehler beim Laden der Daten:', error);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = 
+          `Fehler beim Laden der Live-Daten: ${error.message}. Versuche es später erneut oder prüfe deine Internetverbindung.`;
+      } finally {
+        isLoading = false;
+        document.getElementById('refreshBtn').disabled = false;
+      }
+    }
+
+    function refreshData() {
+      loadChart();
+    }
+
+    // Auto-refresh alle 30 Sekunden für kurze Zeiträume
+    setInterval(() => {
+      if (currentTimeframe === '1d' && !isLoading) {
+        refreshData();
+      }
+    }, 30000);
+
+    // Auto-refresh alle 5 Minuten für längere Zeiträume
+    setInterval(() => {
+      if (currentTimeframe !== '1d' && !isLoading) {
+        refreshData();
+      }
+    }, 300000);
+
+    // Initial laden
+    loadChart();
+  </script>
 </body>
 </html>
