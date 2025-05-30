@@ -3,120 +3,148 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MSTR Live-Chart</title>
+  <title>MicroStrategy Inc. (MSTR)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: Georgia, serif;
+      background: #fff;
+      color: #111;
+      margin: 0;
       padding: 2rem;
-      background: #f4f4f4;
     }
-    #chartContainer {
-      background: white;
-      border-radius: 10px;
-      padding: 1rem;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    h1 {
+      font-size: 2.4rem;
+      margin-bottom: 0.2rem;
+    }
+    h1 span {
+      font-weight: normal;
+      font-size: 1.4rem;
+      color: #444;
+    }
+    #info {
+      margin: 1rem 0;
+      line-height: 1.6;
+      font-size: 1rem;
+    }
+    .chart-container {
+      width: 100%;
+      max-width: 1000px;
+      margin: 2rem 0;
     }
     canvas {
       width: 100% !important;
       height: auto !important;
     }
+    button {
+      margin-right: 0.5rem;
+      padding: 0.3rem 0.7rem;
+      background: #eee;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h1>MSTR Live-Chart (echte Daten)</h1>
-  <div id="chartContainer">
-    <canvas id="mstrChart"></canvas>
+
+  <h1>📊 MicroStrategy Inc. (MSTR)</h1>
+  <div id="info">Lade Daten...</div>
+
+  <div class="chart-container">
+    <canvas id="chart"></canvas>
   </div>
 
   <script>
-    async function fetchMSTRData() {
-      const proxyUrl = "https://query1.finance.yahoo.com/v8/finance/chart/MSTR?range=1y&interval=1d";
-      const res = await fetch(proxyUrl);
-      const data = await res.json();
-      const chartData = data.chart.result[0];
-      const timestamps = chartData.timestamp;
-      const prices = chartData.indicators.adjclose[0].adjclose;
+    async function fetchData() {
+      const res = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/MSTR?range=1y&interval=1d');
+      const json = await res.json();
+      const result = json.chart.result[0];
+      const prices = result.indicators.adjclose[0].adjclose;
+      const timestamps = result.timestamp;
 
-      const labels = timestamps.map(t =>
-        new Date(t * 1000).toISOString().split("T")[0]
-      );
+      const labels = timestamps.map(t => new Date(t * 1000).toISOString().split('T')[0]);
+      const cleanData = prices.map((p, i) => ({ date: labels[i], price: p })).filter(p => p.price !== null);
 
-      const pricesClean = prices.map((v, i) => ({
-        date: labels[i],
-        price: v,
-      }));
-
-      // 200-Tage-SMA berechnen
-      function calcSMA(data, windowSize) {
-        const sma = [];
-        for (let i = 0; i < data.length; i++) {
-          if (i < windowSize - 1) {
-            sma.push(null);
-          } else {
-            const slice = data.slice(i - windowSize + 1, i + 1);
-            const avg =
-              slice.reduce((sum, val) => sum + val.price, 0) / windowSize;
-            sma.push(avg);
-          }
+      // 200-Tage-Durchschnitt berechnen
+      const ma200 = [];
+      for (let i = 0; i < cleanData.length; i++) {
+        if (i < 199) {
+          ma200.push(null);
+        } else {
+          const avg = cleanData.slice(i - 199, i + 1).reduce((sum, d) => sum + d.price, 0) / 200;
+          ma200.push(avg);
         }
-        return sma;
       }
 
-      const sma200 = calcSMA(pricesClean, 200);
+      const last = cleanData[cleanData.length - 1];
+      const lastMA = ma200[ma200.length - 1];
+      const diffPct = ((last.price - lastMA) / lastMA * 100).toFixed(2);
 
-      // Chart.js anzeigen
-      const ctx = document.getElementById("mstrChart").getContext("2d");
+      // 52-Wochen Hoch/Tief
+      const pricesOnly = cleanData.map(d => d.price);
+      const high52 = Math.max(...pricesOnly).toFixed(2);
+      const low52 = Math.min(...pricesOnly).toFixed(2);
+
+      // Info-Block füllen
+      document.getElementById("info").innerHTML = `
+        Business Intelligence & Bitcoin Holdings<br>
+        <strong>Aktueller Kurs:</strong> $${last.price.toFixed(2)}<br>
+        <strong>200-Tage MA:</strong> $${lastMA.toFixed(2)}<br>
+        <strong>${diffPct > 0 ? '+' : ''}${diffPct}% ${diffPct > 0 ? 'über' : 'unter'} MA</strong><br>
+        <strong>52W Hoch/Tief:</strong> $${high52} / $${low52}
+      `;
+
+      const ctx = document.getElementById("chart").getContext("2d");
       new Chart(ctx, {
-        type: "line",
+        type: 'line',
         data: {
-          labels: labels,
+          labels: cleanData.map(d => d.date),
           datasets: [
             {
               label: "MSTR Kurs",
-              data: prices,
-              borderColor: "#1d72b8",
-              backgroundColor: "rgba(29, 114, 184, 0.1)",
-              fill: true,
+              data: cleanData.map(d => d.price),
+              borderColor: "#cc0000",
+              backgroundColor: "rgba(204,0,0,0.05)",
               pointRadius: 0,
-              tension: 0.1,
+              fill: true,
+              tension: 0.2,
             },
             {
-              label: "200-Tage-Durchschnitt",
-              data: sma200,
-              borderColor: "orange",
-              borderWidth: 2,
+              label: "200-Tage-MA",
+              data: ma200,
+              borderColor: "blue",
               pointRadius: 0,
-              tension: 0.1,
+              borderWidth: 1.5,
+              tension: 0.2,
             }
-          ],
+          ]
         },
         options: {
-          responsive: true,
+          plugins: {
+            legend: {
+              labels: {
+                usePointStyle: true,
+                pointStyle: 'circle'
+              }
+            }
+          },
           scales: {
             x: {
               ticks: {
-                maxTicksLimit: 10
+                maxTicksLimit: 12
               }
             },
             y: {
               beginAtZero: false
-            }
-          },
-          plugins: {
-            legend: {
-              position: "top"
-            },
-            title: {
-              display: true,
-              text: "MicroStrategy Inc. (MSTR) – 1 Jahr"
             }
           }
         }
       });
     }
 
-    fetchMSTRData();
+    fetchData();
   </script>
+
 </body>
 </html>
