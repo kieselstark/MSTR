@@ -2,334 +2,121 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>📊 MSTR Preischart</title>
-
-  <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#dc2626">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="MSTR Chart">
-
-  <!-- Chart.js CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script> 
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MSTR Live-Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    /* ... DEIN CSS bleibt unverändert ... */
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f4f4f4;
+    }
+    #chartContainer {
+      background: white;
+      border-radius: 10px;
+      padding: 1rem;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>📊 MicroStrategy Inc. (MSTR)</h1>
-      <div class="subtitle">Business Intelligence & Bitcoin Holdings</div>
-    </div>
-    
-    <div class="price-display">
-      <div class="price-item">
-        <div class="price-label">Aktueller Kurs</div>
-        <div class="price-value" id="currentPrice">$---.--</div>
-        <div class="price-change" id="priceChange">---.-- (---%)</div>
-      </div>
-      <div class="price-item">
-        <div class="price-label">200-Tage MA</div>
-        <div class="price-value" id="ma200Price">$---.--</div>
-        <div class="price-change" id="maDistance">--- über/unter MA</div>
-      </div>
-      <div class="price-item">
-        <div class="price-label">52W Hoch/Tief</div>
-        <div class="price-value" id="yearRange">$--- / $---</div>
-      </div>
-    </div>
-
-    <div class="time-controls">
-      <button class="time-btn" onclick="changeTimeframe(event, '1Y')">1 Jahr</button>
-      <button class="time-btn active" onclick="changeTimeframe(event, '2Y')">2 Jahre</button>
-      <button class="time-btn" onclick="changeTimeframe(event, '5Y')">5 Jahre</button>
-      <button class="time-btn" onclick="changeTimeframe(event, 'ALL')">Alle</button>
-    </div>
-
-    <div class="chart-wrapper">
-      <canvas id="priceChart"></canvas>
-    </div>
-    
-    <div class="loading" id="loading">Kursdaten werden geladen...</div>
-    
-    <div class="info-box">
-      <h3>📈 Über MicroStrategy (MSTR)</h3>
-      <p><strong>Geschäft:</strong> Business Intelligence Software & Analytics</p>
-      <p><strong>Bitcoin-Strategy:</strong> Größter Corporate Bitcoin-Holder (>190,000 BTC)</p>
-      <p><strong>CEO:</strong> Michael Saylor (Bitcoin-Maximalist)</p>
-      <p><strong>Volatilität:</strong> Extrem hoch korreliert mit Bitcoin-Preis</p>
-      <p><strong>Aktueller Kurs:</strong> ~$370 (Mai 2025)</p>
-    </div>
+  <h1>MSTR Live-Chart (echte Daten)</h1>
+  <div id="chartContainer">
+    <canvas id="mstrChart"></canvas>
   </div>
 
   <script>
-    const ctx = document.getElementById('priceChart').getContext('2d');
-    let priceChart;
-    let currentTimeframe = '2Y';
+    async function fetchMSTRData() {
+      const proxyUrl = "https://query1.finance.yahoo.com/v8/finance/chart/MSTR?range=1y&interval=1d";
+      const res = await fetch(proxyUrl);
+      const data = await res.json();
+      const chartData = data.chart.result[0];
+      const timestamps = chartData.timestamp;
+      const prices = chartData.indicators.adjclose[0].adjclose;
 
-    function generateMSTRData(timeframe) {
-      const endDate = new Date(2025, 4, 30);
-      let startDate, dataPoints;
-      
-      switch(timeframe) {
-        case '1Y':
-          startDate = new Date(2024, 4, 30);
-          dataPoints = 365;
-          break;
-        case '2Y':
-          startDate = new Date(2023, 4, 30);
-          dataPoints = 730;
-          break;
-        case '5Y':
-          startDate = new Date(2020, 4, 30);
-          dataPoints = 1825;
-          break;
-        case 'ALL':
-          startDate = new Date(2018, 0, 1);
-          dataPoints = 2680;
-          break;
-        default:
-          startDate = new Date(2023, 4, 30);
-          dataPoints = 730;
+      const labels = timestamps.map(t =>
+        new Date(t * 1000).toISOString().split("T")[0]
+      );
+
+      const pricesClean = prices.map((v, i) => ({
+        date: labels[i],
+        price: v,
+      }));
+
+      // 200-Tage-SMA berechnen
+      function calcSMA(data, windowSize) {
+        const sma = [];
+        for (let i = 0; i < data.length; i++) {
+          if (i < windowSize - 1) {
+            sma.push(null);
+          } else {
+            const slice = data.slice(i - windowSize + 1, i + 1);
+            const avg =
+              slice.reduce((sum, val) => sum + val.price, 0) / windowSize;
+            sma.push(avg);
+          }
+        }
+        return sma;
       }
 
-      const labels = [];
-      const prices = [];
-      
-      let basePrice = 150;
-      let momentum = 0;
-      
-      for (let i = 0; i < dataPoints; i++) {
-        const date = new Date(startDate.getTime() + (i * 86400000));
-        labels.push(date.toISOString().split('T')[0]);
-        
-        const progress = i / dataPoints;
-        let target;
-        
-        if (timeframe === 'ALL') {
-          if (progress < 0.15) {
-            target = 170;
-            basePrice += (target - basePrice) * 0.01 + (Math.random() - 0.5) * 8;
-          } else if (progress < 0.18) {
-            basePrice *= 0.95;
-          } else if (progress < 0.35) {
-            target = 170 + ((progress - 0.18) / 0.17) ** 2 * 800;
-            basePrice += (target - basePrice) * 0.03 + (Math.random() - 0.5) * 25;
-          } else if (progress < 0.6) {
-            target = 900 * (1 - ((progress - 0.35) / 0.25) * 0.8);
-            basePrice += (target - basePrice) * 0.02 + (Math.random() - 0.5) * 30;
-          } else if (progress < 0.85) {
-            target = 280 + Math.sin((progress - 0.6) * 8) * 80;
-            basePrice += (target - basePrice) * 0.015 + (Math.random() - 0.5) * 20;
-          } else {
-            target = 370;
-            basePrice += (target - basePrice) * 0.02 + (Math.random() - 0.5) * 15;
-          }
-        } else {
-          if (timeframe === '1Y') {
-            target = 280 + progress * 90 + Math.sin(progress * 6) * 30;
-          } else if (timeframe === '2Y') {
-            target = 200 + progress * 170 + Math.sin(progress * 4) * 40;
-          } else {
-            if (progress < 0.4) {
-              target = 150 + progress * 200;
-            } else if (progress < 0.7) {
-              target = 230 + (progress - 0.4) * 400;
-            } else {
-              target = 350 + (progress - 0.7) * 67;
+      const sma200 = calcSMA(pricesClean, 200);
+
+      // Chart.js anzeigen
+      const ctx = document.getElementById("mstrChart").getContext("2d");
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "MSTR Kurs",
+              data: prices,
+              borderColor: "#1d72b8",
+              backgroundColor: "rgba(29, 114, 184, 0.1)",
+              fill: true,
+              pointRadius: 0,
+              tension: 0.1,
+            },
+            {
+              label: "200-Tage-Durchschnitt",
+              data: sma200,
+              borderColor: "orange",
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.1,
             }
-          }
-
-          momentum = momentum * 0.9 + (target - basePrice) * 0.02;
-          basePrice += momentum + (Math.random() - 0.5) * 12;
-        }
-
-        basePrice = Math.max(50, Math.min(600, basePrice));
-        prices.push(Math.round(basePrice * 100) / 100);
-      }
-
-      return { labels, prices };
-    }
-
-    function calculateMA(prices, period) {
-      const ma = [];
-      for (let i = 0; i < prices.length; i++) {
-        if (i < period - 1) {
-          ma.push(null);
-        } else {
-          const sum = prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
-          ma.push(Math.round((sum / period) * 100) / 100);
-        }
-      }
-      return ma;
-    }
-
-    function updatePriceDisplay(prices, ma200) {
-      const currentPrice = prices[prices.length - 1];
-      const previousPrice = prices[prices.length - 2];
-      const change = currentPrice - previousPrice;
-      const changePercent = (change / previousPrice) * 100;
-      const currentMA = ma200[ma200.length - 1];
-      const maDistance = currentMA ? ((currentPrice - currentMA) / currentMA) * 100 : 0;
-
-      const yearHigh = Math.max(...prices.slice(-252));
-      const yearLow = Math.min(...prices.slice(-252));
-
-      document.getElementById('currentPrice').textContent = `$${currentPrice.toFixed(2)}`;
-      document.getElementById('priceChange').textContent =
-        `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`;
-      document.getElementById('priceChange').className =
-        `price-change ${change >= 0 ? 'positive' : 'negative'}`;
-
-      if (currentMA) {
-        document.getElementById('ma200Price').textContent = `$${currentMA.toFixed(2)}`;
-        document.getElementById('maDistance').textContent =
-          `${maDistance >= 0 ? '+' : ''}${maDistance.toFixed(1)}% ${maDistance >= 0 ? 'über' : 'unter'} MA`;
-        document.getElementById('maDistance').className =
-          `price-change ${maDistance >= 0 ? 'positive' : 'negative'}`;
-      }
-
-      document.getElementById('yearRange').textContent = `$${yearHigh.toFixed(0)} / $${yearLow.toFixed(0)}`;
-    }
-
-    function changeTimeframe(event, timeframe) {
-      currentTimeframe = timeframe;
-      document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
-      loadChart();
-    }
-
-    async function loadChart() {
-      try {
-        document.getElementById('loading').style.display = 'block';
-
-        const data = generateMSTRData(currentTimeframe);
-        const ma200 = calculateMA(data.prices, 200);
-
-        updatePriceDisplay(data.prices, ma200);
-
-        document.getElementById('loading').style.display = 'none';
-
-        if (priceChart) priceChart.destroy();
-
-        priceChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: data.labels,
-            datasets: [
-              {
-                label: 'MSTR Kurs',
-                data: data.prices,
-                borderColor: '#dc2626',
-                backgroundColor: 'rgba(220, 38, 38, 0.05)',
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 6,
-                borderWidth: 3,
-                fill: true,
-                cubicInterpolationMode: 'monotone'
-              },
-              {
-                label: '200-Tage MA',
-                data: ma200,
-                borderColor: '#6366f1',
-                backgroundColor: 'transparent',
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 4,
-                borderWidth: 2,
-                borderDash: [8, 4],
-                fill: false,
-                cubicInterpolationMode: 'monotone'
+          ],
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              ticks: {
+                maxTicksLimit: 10
               }
-            ]
+            },
+            y: {
+              beginAtZero: false
+            }
           },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: true,
-                position: 'top',
-                labels: {
-                  color: '#374151',
-                  font: { size: 14, weight: '500' },
-                  usePointStyle: true,
-                  padding: 20
-                }
-              },
-              tooltip: {
-                mode: 'index',
-                intersect: false,
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                titleColor: 'white',
-                bodyColor: 'white',
-                borderColor: '#dc2626',
-                borderWidth: 1,
-                cornerRadius: 8,
-                displayColors: true,
-                callbacks: {
-                  label: function(context) {
-                    const value = context.parsed.y;
-                    return context.datasetIndex === 0
-                      ? `Kurs: ${value?.toFixed(2) || 'N/A'}`
-                      : `200-MA: ${value?.toFixed(2) || 'N/A'}`;
-                  }
-                }
-              }
+          plugins: {
+            legend: {
+              position: "top"
             },
-            interaction: {
-              mode: 'nearest',
-              axis: 'x',
-              intersect: false
-            },
-            scales: {
-              x: {
-                grid: {
-                  color: 'rgba(0, 0, 0, 0.05)',
-                  drawBorder: false
-                },
-                ticks: {
-                  color: '#6b7280',
-                  maxTicksLimit: 8,
-                  font: { size: 12 }
-                }
-              },
-              y: {
-                beginAtZero: false,
-                grid: {
-                  color: 'rgba(0, 0, 0, 0.05)',
-                  drawBorder: false
-                },
-                ticks: {
-                  color: '#6b7280',
-                  font: { size: 12 },
-                  callback: function(value) {
-                    return '$' + value.toFixed(0);
-                  }
-                }
-              }
-            },
-            elements: {
-              point: {
-                hoverBorderWidth: 3
-              }
+            title: {
+              display: true,
+              text: "MicroStrategy Inc. (MSTR) – 1 Jahr"
             }
           }
-        });
-
-        document.querySelector('.chart-wrapper').style.height = '500px';
-      } catch (e) {
-        document.getElementById('loading').textContent = `Fehler: ${e.message || 'Keine Daten verfügbar.'}`;
-        console.error(e);
-      }
+        }
+      });
     }
 
-    // Initial laden
-    loadChart();
+    fetchMSTRData();
   </script>
 </body>
 </html>
