@@ -12,24 +12,26 @@
   <meta name="apple-mobile-web-app-title" content="MSTR Chart">
 
   <!-- Chart.js CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script> 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.2/chart.min.js" integrity="sha512-d7f2xflaTTnOg/f4sTS3wV+e0rA6P4VY2Tu3jECodlKze8bJ9b0g3zEOw1g3N1aF1eYPgEEcP/Jb04tWvEZwS3w==" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.min.js" integrity="sha512-pgco+qH3uVq5hl86G4O88DbPo+qlOSjKCU7Gv3jH57H8uU1H0p2R3BSXg2Owsw3uAGrW4U3LMkCA3jVBGAXek2g==" crossorigin="anonymous"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
-      color: #333;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #f8fafc;
       padding: 20px;
       min-height: 100vh;
     }
     .container {
       max-width: 1400px;
       margin: 0 auto;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
       overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.1);
     }
     .header {
       text-align: center;
@@ -39,12 +41,13 @@
       position: relative;
     }
     .header h1 {
-      font-size: 2rem;
-      font-weight: 600;
+      font-size: 2.2rem;
+      font-weight: 700;
       margin-bottom: 10px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     .header .subtitle {
-      font-size: 1rem;
+      font-size: 1.1rem;
       opacity: 0.9;
     }
     .live-indicator {
@@ -58,6 +61,7 @@
       padding: 8px 12px;
       border-radius: 20px;
       font-size: 0.85rem;
+      backdrop-filter: blur(10px);
     }
     .live-dot {
       width: 8px;
@@ -67,136 +71,165 @@
       animation: pulse 2s infinite;
     }
     @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.5; }
-      100% { opacity: 1; }
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.2); }
+      100% { opacity: 1; transform: scale(1); }
     }
     .price-display {
-      display: flex;
-      justify-content: space-around;
-      padding: 20px;
-      background: #f8fafc;
-      border-bottom: 1px solid #e2e8f0;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      padding: 30px;
+      background: rgba(30, 41, 59, 0.5);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     }
     .price-item {
       text-align: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.7);
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.1);
     }
     .price-label {
       font-size: 0.9rem;
-      color: #64748b;
-      margin-bottom: 5px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      font-weight: 500;
     }
     .price-value {
-      font-size: 1.3rem;
-      font-weight: 600;
-      color: #1e293b;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 5px;
     }
     .price-change {
-      font-size: 0.9rem;
-      margin-top: 5px;
+      font-size: 0.95rem;
+      font-weight: 600;
     }
-    .positive { color: #16a34a; }
-    .negative { color: #dc2626; }
+    .positive { color: #22c55e; }
+    .negative { color: #ef4444; }
     .chart-wrapper {
       padding: 30px;
       position: relative;
-      height: 500px;
+      height: 600px;
+      background: rgba(15, 23, 42, 0.3);
     }
     canvas {
       max-width: 100%;
       height: auto;
+      border-radius: 12px;
     }
     .loading {
       text-align: center;
-      padding: 40px;
-      color: #777;
-      font-size: 1.1rem;
+      padding: 60px;
+      color: #94a3b8;
+      font-size: 1.2rem;
     }
     .error {
-      background: #fef2f2;
-      color: #991b1b;
-      border: 1px solid #fecaca;
-      padding: 15px;
-      margin: 20px 30px;
-      border-radius: 8px;
-      font-size: 0.9rem;
-    }
-    .info-box {
-      background: #fef2f2;
-      border-left: 4px solid #dc2626;
+      background: rgba(239, 68, 68, 0.1);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.3);
       padding: 20px;
       margin: 20px 30px;
-      border-radius: 8px;
-    }
-    .info-box h3 {
-      color: #dc2626;
-      margin-bottom: 10px;
-      font-size: 1.1rem;
-    }
-    .info-box p {
-      color: #991b1b;
-      line-height: 1.6;
-      margin-bottom: 8px;
+      border-radius: 12px;
+      font-size: 0.95rem;
     }
     .time-controls {
       display: flex;
       justify-content: center;
-      gap: 10px;
-      padding: 20px;
-      background: #f8fafc;
+      gap: 15px;
+      padding: 25px;
+      background: rgba(30, 41, 59, 0.3);
+      flex-wrap: wrap;
     }
     .time-btn {
-      padding: 8px 16px;
-      border: 1px solid #dc2626;
-      background: white;
-      color: #dc2626;
-      border-radius: 6px;
+      padding: 12px 20px;
+      border: 2px solid #dc2626;
+      background: rgba(15, 23, 42, 0.7);
+      color: #f8fafc;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 0.9rem;
-      transition: all 0.2s;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
     }
-    .time-btn:hover,
+    .time-btn:hover {
+      background: rgba(220, 38, 38, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(220, 38, 38, 0.4);
+    }
     .time-btn.active {
       background: #dc2626;
       color: white;
+      box-shadow: 0 5px 15px rgba(220, 38, 38, 0.4);
     }
     .refresh-controls {
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 15px;
-      padding: 15px;
-      background: #f1f5f9;
-      border-top: 1px solid #e2e8f0;
+      gap: 20px;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.5);
+      border-top: 1px solid rgba(148, 163, 184, 0.1);
     }
     .refresh-btn {
-      padding: 8px 16px;
-      background: #dc2626;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
       color: white;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 0.9rem;
-      transition: all 0.2s;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
     }
     .refresh-btn:hover {
-      background: #b91c1c;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(220, 38, 38, 0.4);
     }
     .refresh-btn:disabled {
-      background: #9ca3af;
+      background: #6b7280;
       cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
     }
     .last-update {
-      font-size: 0.8rem;
-      color: #64748b;
+      font-size: 0.85rem;
+      color: #94a3b8;
     }
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      padding: 15px;
+      background: rgba(30, 41, 59, 0.3);
+      margin: 0 30px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+    }
+    .legend-color {
+      width: 16px;
+      height: 3px;
+      border-radius: 2px;
+    }
+    .legend-price { background: #3b82f6; }
+    .legend-sma { background: #f59e0b; }
+    
     @media (max-width: 768px) {
-      .header h1 { font-size: 1.5rem; }
-      .chart-wrapper { padding: 20px; height: 400px; }
-      .info-box { margin: 15px 20px; }
-      .price-display { flex-direction: column; gap: 15px; }
-      .time-controls { flex-wrap: wrap; }
-      .live-indicator { position: static; margin-top: 10px; }
+      .header h1 { font-size: 1.8rem; }
+      .chart-wrapper { padding: 20px; height: 450px; }
+      .price-display { grid-template-columns: 1fr; gap: 15px; padding: 20px; }
+      .time-controls { flex-direction: column; align-items: center; }
+      .live-indicator { position: static; margin: 10px auto 0; }
+      .legend { flex-direction: column; align-items: center; gap: 10px; }
     }
   </style>
 </head>
@@ -208,29 +241,308 @@
         <span>LIVE</span>
       </div>
       <h1>📊 MicroStrategy Inc. (MSTR)</h1>
-      <div class="subtitle">Live Kursdaten via Yahoo Finance</div>
+      <div class="subtitle">Live Kursdaten mit 200-Tage-Linie</div>
     </div>
     
     <div class="price-display">
       <div class="price-item">
         <div class="price-label">Aktueller Kurs</div>
-        <div class="price-value" id="currentPrice">$---.--</div>
+        <div class="price-value" id="currentPrice">Lädt...</div>
         <div class="price-change" id="priceChange">---.-- (---%)</div>
-      </div>
-      <div class="price-item">
-        <div class="price-label">Tageshoch/Tief</div>
-        <div class="price-value" id="dayRange">$--- / $---</div>
-      </div>
-      <div class="price-item">
-        <div class="price-label">Volumen</div>
-        <div class="price-value" id="volume">---</div>
-      </div>
-      <div class="price-item">
-        <div class="price-label">Marktkapitalisierung</div>
-        <div class="price-value" id="marketCap">$---B</div>
       </div>
     </div>
 
     <div class="time-controls">
-      <button class="time-btn" onclick="changeTimeframe('1d')">1 Tag</button>
-      <button
+      <button class="time-btn" onclick="changeTimeframe('3mo')" data-period="3mo">3 Monate</button>
+      <button class="time-btn active" onclick="changeTimeframe('1y')" data-period="1y">1 Jahr</button>
+      <button class="time-btn" onclick="changeTimeframe('3y')" data-period="3y">3 Jahre</button>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-color legend-price"></div>
+        <span>MSTR Kurs</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color legend-sma"></div>
+        <span>200-Tage-Linie</span>
+      </div>
+    </div>
+
+    <div class="chart-wrapper">
+      <div id="loading" class="loading">Lade Kursdaten...</div>
+      <div id="error" class="error" style="display: none;"></div>
+      <canvas id="priceChart" style="display: none;"></canvas>
+    </div>
+
+    <div class="refresh-controls">
+      <button class="refresh-btn" onclick="refreshData()" id="refreshBtn">
+        🔄 Aktualisieren
+      </button>
+      <div class="last-update" id="lastUpdate">
+        Letztes Update: --:--
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let chart = null;
+    let currentTimeframe = '1y';
+    
+    function generateMockData(period) {
+      const now = new Date();
+      const data = [];
+      const smaData = [];
+      let days;
+      
+      switch(period) {
+        case '3mo': days = 90; break;
+        case '1y': days = 365; break;
+        case '3y': days = 1095; break;
+        default: days = 365;
+      }
+      
+      let basePrice = 420;
+      const prices = [];
+      
+      for (let i = days; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        
+        const volatility = 0.05;
+        const change = (Math.random() - 0.5) * 2 * volatility;
+        basePrice = Math.max(50, basePrice * (1 + change));
+        
+        prices.push(basePrice);
+        data.push({
+          x: date,
+          y: basePrice
+        });
+      }
+      
+      for (let i = 0; i < prices.length; i++) {
+        if (i >= 199) {
+          const sum = prices.slice(i - 199, i + 1).reduce((a, b) => a + b, 0);
+          const sma = sum / 200;
+          smaData.push({
+            x: data[i].x,
+            y: sma
+          });
+        }
+      }
+      
+      return { prices: data, sma: smaData };
+    }
+    
+    function initChart() {
+      try {
+        const ctx = document.getElementById('priceChart').getContext('2d');
+        const mockData = generateMockData(currentTimeframe);
+        
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            datasets: [
+              {
+                label: 'MSTR Kurs',
+                data: mockData.prices,
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                pointHoverBackgroundColor: '#3b82f6',
+                pointHoverBorderColor: '#ffffff',
+                pointHoverBorderWidth: 2
+              },
+              {
+                label: '200-Tage-Linie',
+                data: mockData.sma,
+                borderColor: '#f59e0b',
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                borderDash: [5, 5]
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+              intersect: false,
+              mode: 'index'
+            },
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                titleColor: '#f8fafc',
+                bodyColor: '#f8fafc',
+                borderColor: '#374151',
+                borderWidth: 1,
+                cornerRadius: 8,
+                padding: 12,
+                displayColors: true,
+                callbacks: {
+                  label: function(context) {
+                    return context.dataset.label + ': $' + context.parsed.y.toFixed(2);
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                type: 'time',
+                time: {
+                  tooltipFormat: 'dd.MM.yyyy',
+                  displayFormats: {
+                    day: 'dd.MM',
+                    month: 'MMM yy',
+                    year: 'yyyy'
+                  }
+                },
+                grid: {
+                  color: 'rgba(148, 163, 184, 0.1)',
+                  drawBorder: false
+                },
+                ticks: {
+                  color: '#94a3b8',
+                  maxTicksLimit: 8
+                }
+              },
+              y: {
+                grid: {
+                  color: 'rgba(148, 163, 184, 0.1)',
+                  drawBorder: false
+                },
+                ticks: {
+                  color: '#94a3b8',
+                  callback: function(value) {
+                    return '$' + value.toFixed(0);
+                  }
+                }
+              }
+            },
+            elements: {
+              point: {
+                hoverBackgroundColor: '#3b82f6'
+              }
+            }
+          }
+        });
+        
+        updatePriceDisplay(mockData.prices);
+      } catch (error) {
+        showError('Fehler beim Initialisieren des Charts: ' + error.message);
+      }
+    }
+    
+    function updatePriceDisplay(data) {
+      try {
+        if (data && data.length > 0) {
+          const latest = data[data.length - 1];
+          const previous = data[data.length - 2];
+          const change = latest.y - previous.y;
+          const changePercent = (change / previous.y) * 100;
+          
+          document.getElementById('currentPrice').textContent = '$' + latest.y.toFixed(2);
+          
+          const changeElement = document.getElementById('priceChange');
+          const changeText = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`;
+          changeElement.textContent = changeText;
+          changeElement.className = `price-change ${change >= 0 ? 'positive' : 'negative'}`;
+        }
+      } catch (error) {
+        showError('Fehler beim Aktualisieren der Preisdaten: ' + error.message);
+      }
+    }
+    
+    function showError(message) {
+      const errorDiv = document.getElementById('error');
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('priceChart').style.display = 'none';
+    }
+    
+    function changeTimeframe(period) {
+      try {
+        currentTimeframe = period;
+        
+        document.querySelectorAll('.time-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        document.querySelector(`[data-period="${period}"]`).classList.add('active');
+        
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('priceChart').style.display = 'none';
+        document.getElementById('error').style.display = 'none';
+        
+        setTimeout(() => {
+          const mockData = generateMockData(period);
+          
+          chart.data.datasets[0].data = mockData.prices;
+          chart.data.datasets[1].data = mockData.sma;
+          chart.update('active');
+          
+          updatePriceDisplay(mockData.prices);
+          
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('priceChart').style.display = 'block';
+        }, 500);
+      } catch (error) {
+        showError('Fehler beim Wechseln des Zeitraums: ' + error.message);
+      }
+    }
+    
+    function refreshData() {
+      try {
+        const btn = document.getElementById('refreshBtn');
+        btn.disabled = true;
+        btn.textContent = '🔄 Aktualisiere...';
+        
+        setTimeout(() => {
+          changeTimeframe(currentTimeframe);
+          
+          const now = new Date();
+          document.getElementById('lastUpdate').textContent = 
+            `Letztes Update: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+          
+          btn.disabled = false;
+          btn.textContent = '🔄 Aktualisieren';
+        }, 1000);
+      } catch (error) {
+        showError('Fehler beim Aktualisieren der Daten: ' + error.message);
+      }
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(() => {
+        try {
+          initChart();
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('priceChart').style.display = 'block';
+          
+          const now = new Date();
+          document.getElementById('lastUpdate').textContent = 
+            `Letztes Update: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        } catch (error) {
+          showError('Fehler beim Laden der Seite: ' + error.message);
+        }
+      }, 1000);
+    });
+    
+    setInterval(() => {
+      refreshData();
+    }, 300000);
+  </script>
+</body>
+</html>
