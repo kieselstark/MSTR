@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>📈 MSTR Live Chart</title>
+  <title>📈 MSTR Chart</title>
   <!-- Chart.js CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script> 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -91,207 +91,204 @@
       position: relative;
       height: 500px;
     }
-    canvas {
-      width: 100%;
-      height: 100%;
+    .price-sub { font-size: .8rem; color: #94a3b8; margin-top: 4px; }
+    .note { text-align: center; font-size: .8rem; color: #94a3b8; padding: 0 20px 20px; line-height: 1.5; }
+    .note a { color: #cbd5e1; }
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      .header h1 { font-size: 1.3rem; }
+      .price-display { grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 10px; }
+      .price-label { font-size: .68rem; min-height: 2.2em; }
+      .price-sub, .price-change { font-size: .68rem; }
+      .price-item { padding: 8px 4px; }
+      .price-value { font-size: 1rem; }
+      .time-controls { gap: 8px; padding: 12px; }
+      .time-btn { padding: 8px 12px; }
+      .chart-wrapper { padding: 8px; height: 360px; }
     }
-    .refresh-controls {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 20px;
-      padding: 15px;
-      background: #1e293b;
-      border-top: 1px solid #334155;
-    }
-    .refresh-btn {
-      padding: 10px 20px;
-      background: #dc2626;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background 0.3s ease;
-    }
-    .refresh-btn:hover {
-      background: #ef4444;
-    }
-    .last-update {
-      font-size: 0.85rem;
-      color: #94a3b8;
-    }
+    .legend { display: flex; justify-content: center; gap: 20px; font-size: .85rem; color: #cbd5e1; padding-top: 4px; }
+    .legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid #3b82f6; vertical-align: middle; margin-right: 6px; }
+    .legend i.sma { border-top: 2px dashed #f59e0b; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>📊 MicroStrategy Inc. (MSTR)</h1>
+      <h1>📊 Strategy Inc. (MSTR)</h1>
     </div>
 
     <div class="price-display">
       <div class="price-item">
-        <div class="price-label">Aktueller Kurs</div>
-        <div class="price-value" id="currentPrice">Lädt...</div>
-        <div class="price-change" id="priceChange">---.-- (---%)</div>
+        <div class="price-label">Schlusskurs</div>
+        <div class="price-value" id="currentPrice">Lädt…</div>
+        <div class="price-change" id="priceChange">&nbsp;</div>
+      </div>
+      <div class="price-item">
+        <div class="price-label">Performance Zeitraum</div>
+        <div class="price-value" id="perf">–</div>
+        <div class="price-sub" id="perfSub">&nbsp;</div>
+      </div>
+      <div class="price-item">
+        <div class="price-label">Abstand 200-Tage-Linie</div>
+        <div class="price-value" id="smaDist">–</div>
+        <div class="price-sub" id="smaSub">&nbsp;</div>
       </div>
     </div>
 
     <div class="time-controls">
-      <button class="time-btn" onclick="changeTimeframe('3mo')" data-period="3mo">3 Monate</button>
-      <button class="time-btn active" onclick="changeTimeframe('1y')" data-period="1y">1 Jahr</button>
-      <button class="time-btn" onclick="changeTimeframe('3y')" data-period="3y">3 Jahre</button>
+      <button class="time-btn" data-months="3">3 Monate</button>
+      <button class="time-btn active" data-months="12">1 Jahr</button>
+      <button class="time-btn" data-months="36">3 Jahre</button>
+      <button class="time-btn" data-months="60">5 Jahre</button>
+      <button class="time-btn" data-months="0">Seit 2018</button>
     </div>
 
+    <div class="legend"><span><i></i>MSTR Schlusskurs</span><span><i class="sma"></i>200-Tage-Linie</span></div>
     <div class="chart-wrapper">
       <canvas id="priceChart"></canvas>
     </div>
 
-    <div class="refresh-controls">
-      <button class="refresh-btn" onclick="refreshData()" id="refreshBtn">🔄 Aktualisieren</button>
-      <div class="last-update" id="lastUpdate">Letztes Update: --:--</div>
-    </div>
+    <div class="note" id="note">Daten werden geladen…</div>
   </div>
 
   <script>
-    let chart = null;
-    let currentTimeframe = '1y';
-    let chartData = {};
-    const API_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/MSTR?interval=1d';
+    const fmtUsd = v => '$' + v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtPct = v => (v >= 0 ? '+' : '') + v.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
+    const fmtDate = t => new Date(t).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const cls = v => v >= 0 ? 'positive' : 'negative';
 
-    function fetchYahooData(period) {
-      return fetch(`https://query1.finance.yahoo.com/v8/finance/chart/MSTR?interval=1d&range=${period}Y`)
-        .then(response => response.json())
-        .then(data => {
-          const timestamps = data.chart.result[0].timestamp;
-          const prices = data.chart.result[0].indicators.quote[0];
-          const closes = prices.close.filter(Boolean);
-          const dates = timestamps.map(ts => new Date(ts * 1000));
-          return { dates, closes };
-        });
+    let rows = [];      // { t, close, sma }
+    let chart = null;
+    let months = 12;
+
+    function sma(values, n) {
+      const out = new Array(values.length).fill(null);
+      let sum = 0;
+      for (let i = 0; i < values.length; i++) {
+        sum += values[i];
+        if (i >= n) sum -= values[i - n];
+        if (i >= n - 1) out[i] = sum / n;
+      }
+      return out;
     }
 
-    function initChart() {
-      fetchYahooData(currentTimeframe)
-        .then(data => {
-          const labels = data.dates;
-          const values = data.closes;
+    function visibleRows() {
+      if (!months) return rows;
+      const from = new Date(rows[rows.length - 1].t);
+      from.setMonth(from.getMonth() - months);
+      return rows.filter(r => r.t >= from.getTime());
+    }
 
-          // Generate chart data with SMA
-          const sma = calculateSMA(values, 200);
+    function tickLabel(t) {
+      const d = new Date(t);
+      if (months && months <= 3) return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+      return months && months <= 12
+        ? d.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' })
+        : String(d.getFullYear());
+    }
 
-          chart = new Chart(document.getElementById('priceChart'), {
-            type: 'line',
-            data: {
-              labels: labels,
-              datasets: [
-                {
-                  label: 'MSTR Kurs',
-                  data: values.map((v, i) => ({ x: labels[i], y: v })),
-                  borderColor: '#3b82f6', 
-                  backgroundColor: 'rgba(59,130,246,0.1)',
-                  borderWidth: 3,
-                  fill: true,
-                  tension: 0.1,
-                  pointRadius: 0
-                },
-                {
-                  label: '200-Tage-Linie',
-                  data: sma.map((v, i) => ({ x: labels[i + 199], y: v })),
-                  borderColor: '#f59e0b',
-                  borderDash: [5, 5],
-                  borderWidth: 2,
-                  pointRadius: 0
-                }
-              ]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false }
-              },
-              scales: {
-                x: {
-                  type: 'time',
-                  time: {
-                    unit: 'month'
-                  },
-                  ticks: { color: '#f8fafc' },
-                  grid: { color: '#334155' }
-                },
-                y: {
-                  ticks: {
-                    color: '#f8fafc',
-                    callback: value => '$' + value.toFixed(0)
-                  },
-                  grid: { color: '#334155' }
-                }
+    function render() {
+      const vis = visibleRows();
+      const first = vis[0], last = vis[vis.length - 1];
+
+      const perf = (last.close / first.close - 1) * 100;
+      const perfEl = document.getElementById('perf');
+      perfEl.textContent = fmtPct(perf);
+      perfEl.className = 'price-value ' + cls(perf);
+      document.getElementById('perfSub').textContent = `seit ${fmtDate(first.t)}`;
+
+      const lastRow = rows[rows.length - 1];
+      const dist = (lastRow.close / lastRow.sma - 1) * 100;
+      const distEl = document.getElementById('smaDist');
+      distEl.textContent = fmtPct(dist);
+      distEl.className = 'price-value ' + cls(dist);
+      document.getElementById('smaSub').textContent = `200-Tage-Linie: ${fmtUsd(lastRow.sma)}`;
+
+      const price = vis.map(r => ({ x: r.t, y: r.close }));
+      const avg = vis.filter(r => r.sma !== null).map(r => ({ x: r.t, y: r.sma }));
+
+      if (chart) {
+        chart.data.datasets[0].data = price;
+        chart.data.datasets[1].data = avg;
+        chart.options.scales.x.min = first.t;
+        chart.options.scales.x.max = last.t;
+        chart.update();
+        return;
+      }
+      chart = new Chart(document.getElementById('priceChart'), {
+        type: 'line',
+        data: {
+          datasets: [
+            { label: 'MSTR', data: price, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)',
+              borderWidth: 2, fill: true, tension: 0, pointRadius: 0, pointHoverRadius: 4 },
+            { label: '200-Tage-Linie', data: avg, borderColor: '#f59e0b', borderDash: [5, 5],
+              borderWidth: 2, pointRadius: 0, pointHoverRadius: 0, fill: false }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          parsing: false,
+          animation: false,
+          interaction: { mode: 'index', axis: 'x', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: items => fmtDate(items[0].parsed.x),
+                label: item => `${item.dataset.label}: ${fmtUsd(item.parsed.y)}`
               }
             }
-          });
-
-          updatePriceDisplay(values);
-          document.getElementById('lastUpdate').textContent =
-            `Letztes Update: ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-        });
-    }
-
-    function calculateSMA(data, window) {
-      const result = [];
-      for (let i = 0; i <= data.length - window; i++) {
-        const sum = data.slice(i, i + window).reduce((a, b) => a + b, 0);
-        result.push(sum / window);
-      }
-      return result;
-    }
-
-    function updatePriceDisplay(values) {
-      if (values.length > 0) {
-        const latest = values[values.length - 1];
-        const previous = values[values.length - 2] || latest;
-        const change = latest - previous;
-        const percent = ((change / previous) * 100).toFixed(2);
-        const priceElement = document.getElementById('currentPrice');
-        const changeElement = document.getElementById('priceChange');
-
-        priceElement.textContent = `$${latest.toFixed(2)}`;
-        changeElement.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${percent}%)`;
-        changeElement.className = `price-change ${change >= 0 ? 'positive' : 'negative'}`;
-      }
-    }
-
-    function changeTimeframe(period) {
-      currentTimeframe = period;
-      document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
-      document.querySelector(`[data-period="${period}"]`).classList.add('active');
-      refreshData();
-    }
-
-    function refreshData() {
-      const btn = document.getElementById('refreshBtn');
-      btn.disabled = true;
-      btn.textContent = '🔄 Wird geladen...';
-
-      fetchYahooData(currentTimeframe).then(data => {
-        chart.data.datasets[0].data = data.closes.map((v, i) => ({ x: data.dates[i], y: v }));
-        chart.data.datasets[1].data = calculateSMA(data.closes, 200)
-          .map((v, i) => ({ x: data.dates[i + 199], y: v }));
-        chart.update();
-
-        updatePriceDisplay(data.closes);
-        document.getElementById('lastUpdate').textContent =
-          `Letztes Update: ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-
-        btn.disabled = false;
-        btn.textContent = '🔄 Aktualisieren';
+          },
+          scales: {
+            x: {
+              type: 'linear', min: first.t, max: last.t,
+              ticks: { color: '#f8fafc', maxTicksLimit: 8, callback: tickLabel },
+              grid: { color: '#334155' }
+            },
+            y: {
+              ticks: { color: '#f8fafc', callback: v => '$' + Math.round(v).toLocaleString('de-DE') },
+              grid: { color: '#334155' }
+            }
+          }
+        }
       });
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      initChart();
-    });
+    async function load() {
+      try {
+        const res = await fetch('data/mstr.json', { cache: 'no-cache' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const closes = data.rows.map(r => r[1]);
+        const avg = sma(closes, 200);
+        rows = data.rows.map((r, i) => ({ t: new Date(r[0] + 'T00:00:00').getTime(), close: r[1], sma: avg[i] }));
 
-    setInterval(refreshData, 300000); // Alle 5 Minuten aktualisieren
+        const last = rows[rows.length - 1], prev = rows[rows.length - 2];
+        const chg = last.close - prev.close, pct = chg / prev.close * 100;
+        document.getElementById('currentPrice').textContent = fmtUsd(last.close);
+        const chgEl = document.getElementById('priceChange');
+        chgEl.textContent = `${chg >= 0 ? '+' : '−'}${fmtUsd(Math.abs(chg))} (${fmtPct(pct)})`;
+        chgEl.className = 'price-change ' + cls(chg);
+        document.getElementById('note').innerHTML =
+          `Schlusskurs vom ${fmtDate(last.t)} · Daten: Yahoo Finance, splitbereinigt (10:1-Split Aug. 2024), ` +
+          `werktags automatisch aktualisiert per <a href="https://github.com/kieselstark/MSTR/actions">GitHub Action</a>.`;
+        render();
+      } catch (e) {
+        document.getElementById('currentPrice').textContent = 'Fehler';
+        document.getElementById('note').textContent = 'Kursdaten konnten nicht geladen werden: ' + e.message;
+        console.error(e);
+      }
+    }
+
+    document.querySelectorAll('.time-btn').forEach(btn => btn.addEventListener('click', () => {
+      document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      months = Number(btn.dataset.months);
+      if (rows.length) render();
+    }));
+
+    load();
   </script>
 </body>
 </html>
